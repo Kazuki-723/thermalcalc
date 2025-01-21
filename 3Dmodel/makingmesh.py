@@ -133,6 +133,12 @@ for x in range(height):
     for y in range(mid_y):
         mesh[width - y - 1][x] = mesh[y][x]
 
+#左側拡張
+left_padding = 500
+mesh_height = mesh.shape[0]
+left = np.zeros((mesh_height,left_padding))
+mesh = np.concatenate([left,mesh],1)
+
 # メッシュをCSVファイルとして出力
 csv_file = 'mesh_output_with_internal_air.csv'
 with open(csv_file, 'w', newline='') as file:
