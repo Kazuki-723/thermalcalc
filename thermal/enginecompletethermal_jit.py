@@ -21,7 +21,7 @@ alpha_Al = 9.8e-5  # アルミニウムの温度拡散率 (計算値)
 alpha_insulation = 2.1e-7  # GFRPの温度拡散率 (計算値)
 alpha_graphite = 1.0e-7  # グラファイトの温度拡散率 (参考値) 拡散防止に1/1000にしてます
 alpha_air = 2.2e-5 # 空気の温度拡散率 u = 0
-alpha_air_inside =25e-5 #空気の温度拡散率 u = 1000[m/s]
+alpha_air_inside =25e-5 #空気の温度拡散率 u = 1000[m/s](25e-5)
 max_alpha = max(alpha_PMMA,alpha_Al,alpha_insulation,alpha_graphite,alpha_air,alpha_air_inside)
 print(max_alpha)
 
@@ -94,6 +94,36 @@ for i in range(1,mesh.shape[0]-1):
 total_time = 10  # 計算したい時間を入れる
 num_steps = int(total_time / dt)
 
+#発散防止
+@jit(nopython=True)
+def diverge(temp_new, T_initial, T_air_injector, i, j):
+    if temp_new[i, j] < T_initial:
+        temp_new[i, j] = T_initial
+    elif temp_new[i, j] > T_air_injector:
+        temp_new[i, j] = T_air_injector
+    else:
+        pass
+    return temp_new
+
+#流速の仮実装(mesh/deltatで出口部の空気を流す)
+@jit(nopython=True)
+def flow_rate(mesh, temp_new, i, j):
+    diff = temp_new[i,j] - temp_new[i,j+1]
+    if mesh[i,j] == 0 and diff < 0:
+        if mesh[i,j+1] in [0,6,7,8]:
+            temp_new[i,j] = temp_new[i,j+1]
+        else:
+            pass
+    elif mesh[i,j] == 0 and diff  > 0:
+        if mesh[i,j-1] in [0,6,7,8]:
+            temp_new[i,j] = temp_new[i,j-1]
+        else:
+            pass
+    else:
+        pass
+    return temp_new
+
+
 @jit(nopython=True)
 def heat_conduction(num_steps, temperature, materials, dt, dx, dy, T_initial, T_air_injector):
     for step in range(num_steps):
@@ -107,15 +137,13 @@ def heat_conduction(num_steps, temperature, materials, dt, dx, dy, T_initial, T_
                             (temperature[i, j+1] - 2 * temperature[i, j] + temperature[i, j-1]) / dy**2)
                     temp_new[i, j] = round(temp_new[i,j],5)
                 else:
-                    continue
+                    pass
 
                 #発散防止
-                if temp_new[i, j] < T_initial:
-                    temp_new[i, j] = T_initial
-                elif temp_new[i, j] > T_air_injector:
-                    temp_new[i, j] = T_air_injector
-                else:
-                    continue
+                temp_new = diverge(temp_new, T_initial, T_air_injector, i, j)
+
+                #流速の仮実装(mesh/deltatで出口部の空気を流す)
+                temp_new = flow_rate(mesh, temp_new, i, j)
         temperature = temp_new.copy()
     return temperature
 
@@ -149,7 +177,7 @@ non_zero_indices = np.argwhere(temperature > 0)
 
 # 最終結果を画像として表示
 fig, ax = plt.subplots()
-cax = ax.imshow(temperature[top:bottom+1, left:right+1], cmap='hot', interpolation='nearest', vmin=300, vmax=3000)
+cax = ax.imshow(temperature[top:bottom+1, left:right+1], cmap='plasma', interpolation='nearest', vmin=300, vmax=3000)
 ax.imshow(edges[top:bottom+1, left:right+1], alpha=0.6) #縁取り要員
 plt.title('Final Temperature Distribution with Material Edges')
 plt.xlabel('X-axis (mm)')
