@@ -1,6 +1,7 @@
 import numpy as np
 import matplotlib.pyplot as plt
 import csv
+from numba import jit
 
 # 初期化
 
@@ -15,11 +16,12 @@ y = np.linspace(0, 100, height)
 X_mesh, Y_mesh = np.meshgrid(x, y)
 
 # パラメータの設定
-N = 1000  # 粒子数
+N = 10000  # 粒子数
 T = 2300  # 温度 (K)
 M = 29 #分子量
-initialvalue = 100 #初期の粒子数
-time_steps = 10 #時間発展数
+initialvalue = 1000 #初期の粒子数
+time_steps = 1000 #時間発展数
+inlet_particle = 10000 #一回ごとに流入する粒子
 
 #流入速度
 u_x = -500
@@ -85,6 +87,7 @@ def clac_speed_sys(dot_product_list,pos_x_list,pos_y_list):
     return speed_sys_x_list, speed_sys_y_list
 
 #拡散シミュレーション
+@jit(nopython=True)
 def maxwell_boltzmann_2d(N, T, M, speed_sys_x, speed_sys_y):
     k_B = 1.380649e-23  # ボルツマン定数 (m^2 kg s^-2 K^-1)
     mass = M * 1.66053906660e-27
@@ -93,10 +96,6 @@ def maxwell_boltzmann_2d(N, T, M, speed_sys_x, speed_sys_y):
     # x方向とy方向の速度成分を生成
     vx = np.random.normal(0, sigma, N) + speed_sys_x
     vy = np.random.normal(0, sigma, N) + speed_sys_y
-
-    #simulationを考えて時間dt辺りの移動量を推定
-    vx = vx * 0.0002
-    vy = vy * 0.0002
     
     counts = np.zeros(4)
     
@@ -116,8 +115,7 @@ def maxwell_boltzmann_2d(N, T, M, speed_sys_x, speed_sys_y):
 #シミュ本番
 def mesh_simulation(spread, particles):
     particles_new = particles.copy()
-    
-
+    #時間発展作業
     for i in range(1,width-1):
         for j in range(1,height-1):
             if i != width and j != height:
@@ -163,6 +161,10 @@ with open(csv_file_path, mode='w', newline='') as file:
 #mesh拡散のシミュレーション
 for i in range(time_steps):
     particles = mesh_simulation(spread, particles)
+
+    #右端に入力
+    for j in range(40,60,1):
+        particles[100,j] = inlet_particle
     print(i)
 
 particles = particles.T
@@ -179,13 +181,13 @@ fig.colorbar(cax, ax=ax, label='particles', orientation='vertical')
 plt.show()
 
 # 矢印をプロット
-# plt.figure(figsize=(10, 10))
-# plt.quiver(Y_mesh, X_mesh, speed_sys_x_list, speed_sys_y_list, angles='xy', scale_units='xy', scale=1)
-# plt.title("system_speed_list")
-# plt.xlabel("x")
-# plt.ylabel("y")
-# plt.xlim(0,101)
-# plt.ylim(0,101)
-# plt.grid()
-# plt.show()
+plt.figure(figsize=(10, 10))
+plt.quiver(Y_mesh, X_mesh, speed_sys_x_list, speed_sys_y_list, angles='xy', scale_units='xy', scale=1)
+plt.title("system_speed_list")
+plt.xlabel("x")
+plt.ylabel("y")
+plt.xlim(0,101)
+plt.ylim(0,101)
+plt.grid()
+plt.show()
 
